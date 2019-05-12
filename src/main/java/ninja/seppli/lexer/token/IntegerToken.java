@@ -5,6 +5,7 @@ import ninja.seppli.utils.TextAddress;
 public class IntegerToken implements Token {
 	private int number;
 	private TextAddress address;
+	private boolean error = false;
 
 	public IntegerToken(int number, TextAddress address) {
 		this.number = number;
@@ -13,6 +14,16 @@ public class IntegerToken implements Token {
 
 	public int getNumber() {
 		return number;
+	}
+
+	public IntegerToken markError() {
+		this.error = true;
+		return this;
+	}
+
+	@Override
+	public boolean hasError() {
+		return error;
 	}
 
 	@Override

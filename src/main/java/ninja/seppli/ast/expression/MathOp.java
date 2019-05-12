@@ -1,5 +1,7 @@
 package ninja.seppli.ast.expression;
 
+import ninja.seppli.lexer.token.KeywordType;
+
 /**
  * the math operation
  * @author sebi
@@ -38,4 +40,19 @@ public enum MathOp {
 		return sign;
 	}
 
+	/**
+	 * maps the given keyword type to a {@link MathOp}.
+	 * If the type could't be matched then null is returned
+	 * @param t the keywordtype
+	 * @return the MathOp
+	 */
+	public static MathOp fromKeyword(KeywordType t)  {
+		switch (t) {
+		case PLUS:
+			return ADD;
+		case MINUS:
+			return SUB;
+		}
+		return null;
+	}
 }

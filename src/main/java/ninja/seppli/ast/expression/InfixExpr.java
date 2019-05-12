@@ -106,4 +106,9 @@ public class InfixExpr implements Expression {
 		}
 		return true;
 	}
+
+	@Override
+	public String toString() {
+		return "InfixExpr { " + expr1 + " " + op.getSign() + " " + expr2 + " }";
+	}
 }

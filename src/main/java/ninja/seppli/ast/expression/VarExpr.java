@@ -48,4 +48,8 @@ public class VarExpr implements Expression {
 		return true;
 	}
 
+	@Override
+	public String toString() {
+		return "VarExpr { " + getId().getString() + " }";
+	}
 }

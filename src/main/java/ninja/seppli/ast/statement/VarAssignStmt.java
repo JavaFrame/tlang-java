@@ -82,5 +82,9 @@ public class VarAssignStmt implements Statement {
 		return true;
 	}
 
+	@Override
+	public String toString() {
+		return "VarAssignStmt { " + getId() + " := " + getExpr() + " }";
+	}
 
 }

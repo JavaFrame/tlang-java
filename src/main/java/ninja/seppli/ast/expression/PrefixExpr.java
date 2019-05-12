@@ -84,4 +84,9 @@ public class PrefixExpr implements Expression {
 		}
 		return true;
 	}
+
+	@Override
+	public String toString() {
+		return "PrefixExpr { " + getOp().getSign() + " " + expr + " }";
+	}
 }

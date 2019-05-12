@@ -51,11 +51,10 @@ public class Program implements AstNode {
 	@Override
 	public String getString() {
 		StringBuilder out = new StringBuilder();
-		out.append("Program {\n");
 		for(AstNode n : nodes) {
-			out.append("\t" + n.getString());
+			out.append(n.getString());
 		}
-		out.append("}");
 		return out.toString();
 	}
+
 }

@@ -1,8 +1,9 @@
 package ninja.seppli.lexer.token;
 
+import ninja.seppli.lexer.token.Precedence.HasPrecedence;
 import ninja.seppli.utils.TextAddress;
 
-public class KeywordToken implements Token {
+public class KeywordToken implements Token, HasPrecedence {
 	private KeywordType type;
 	private TextAddress address;
 
@@ -23,6 +24,16 @@ public class KeywordToken implements Token {
 	@Override
 	public TextAddress getAddress() {
 		return address;
+	}
+
+	@Override
+	public boolean hasError() {
+		return type == KeywordType.ERROR;
+	}
+
+	@Override
+	public Precedence getPrecedence() {
+		return getType().getPrecedence();
 	}
 
 	@Override

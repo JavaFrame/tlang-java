@@ -7,6 +7,8 @@ public class IdentifierToken implements Token {
 	private String id;
 	private TextAddress address;
 
+	private boolean error = false;
+
 	public IdentifierToken(String id, TextAddress address) {
 		this.id = id;
 		this.address = address;
@@ -20,6 +22,17 @@ public class IdentifierToken implements Token {
 	@Override
 	public TextAddress getAddress() {
 		return address;
+	}
+
+
+	public IdentifierToken markError() {
+		this.error = true;
+		return this;
+	}
+
+	@Override
+	public boolean hasError() {
+		return error;
 	}
 
 	@Override
