@@ -1,13 +1,17 @@
 package ninja.seppli.parser;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import ninja.seppli.ast.expression.Expression;
+import ninja.seppli.ast.expression.FunctionCallExpr;
 import ninja.seppli.ast.expression.InfixExpr;
 import ninja.seppli.ast.expression.IntegerExpr;
 import ninja.seppli.ast.expression.MathOp;
 import ninja.seppli.ast.expression.PrefixExpr;
+import ninja.seppli.ast.expression.StringExpr;
 import ninja.seppli.ast.expression.VarExpr;
 import ninja.seppli.ast.statement.ExpressionStmt;
 import ninja.seppli.ast.statement.Program;
@@ -23,6 +27,7 @@ import ninja.seppli.lexer.token.IntegerToken;
 import ninja.seppli.lexer.token.KeywordToken;
 import ninja.seppli.lexer.token.KeywordType;
 import ninja.seppli.lexer.token.Precedence;
+import ninja.seppli.lexer.token.StringToken;
 import ninja.seppli.lexer.token.Token;
 
 public class Parser {
@@ -105,7 +110,7 @@ public class Parser {
 					.collect(Collectors.joining("\", \""));
 			resync();
 			throw new RuntimeWrapperException(new ParserException(input.getAddress(),
-					"Unexpected Token \"" + input.getString() + "\", expected \"" + expectedStr + " \""));
+					"Unexpected Token \"" + input.getString() + "\", expected \"" + expectedStr + "\""));
 		}
 		return true;
 	}
@@ -148,7 +153,7 @@ public class Parser {
 		if (!(input instanceof KeywordToken)) {
 			resync();
 			throw new RuntimeWrapperException(new ParserException(input.getAddress(),
-					"Unexpected Token \"" + input.getString() + "\", expected \"" + expectedStr + " \""));
+					"Unexpected Token \"" + input.getString() + "\", expected \"" + expectedStr + "\""));
 		}
 
 		KeywordType type = ((KeywordToken) input).getType();
@@ -156,7 +161,7 @@ public class Parser {
 		if (!result) {
 			resync();
 			throw new RuntimeWrapperException(new ParserException(input.getAddress(),
-					"Unexpected Token \"" + type.getString() + "\", expected \"" + expectedStr + " \""));
+					"Unexpected Token \"" + type.getString() + "\", expected \"" + expectedStr + "\""));
 		}
 		return result;
 	}
@@ -230,13 +235,12 @@ public class Parser {
 	 */
 	private Statement parseStmt() {
 		Token t = getCurrent();
-		expectTypeCurrent(IdentifierToken.class);
-		expectTypeNext(KeywordToken.class);
-		KeywordToken next = (KeywordToken) getNext();
+		KeywordType type = KeywordType.getKeywordType(getNext());
 		Statement stmt = null;
-		if (KeywordType.EQUAL.equals(next.getType())) {
+
+		if (KeywordType.EQUAL.equals(type)) {
 			stmt = parseVarSetStmt();
-		} else if (KeywordType.COLON.equals(next.getType())) {
+		} else if (KeywordType.COLON.equals(type)) {
 			stmt = parseVarAssignStmt();
 		} else {
 			stmt = parseExpressionStmt();
@@ -293,6 +297,7 @@ public class Parser {
 
 	/**
 	 * Parses an expression and wraps it in a {@link ExpressionStmt}
+	 *
 	 * @return the statement
 	 */
 	private ExpressionStmt parseExpressionStmt() {
@@ -309,37 +314,64 @@ public class Parser {
 	private Expression parseExpression(Precedence precedence) {
 		Expression leftExpr = parsePrefixExpression();
 		while (Precedence.getPrecedenceOf(current).getPrecedence() > precedence.getPrecedence()) {
-			Token opToken = getCurrent();
-			nextToken();
-			Expression rightExpr = parseExpression(Precedence.getPrecedenceOf(opToken));
-			leftExpr = parseMathOp(leftExpr, opToken, rightExpr);
+			leftExpr = parseMathOp(leftExpr);
 		}
 		return leftExpr;
 	}
 
-	private Expression parseMathOp(Expression left, Token token, Expression right) {
-		expectTypeCurrent(KeywordToken.class);
-		KeywordToken keyword = (KeywordToken) token;
-		return new InfixExpr(MathOp.fromKeyword(keyword.getType()), left, right);
+	private Expression parseMathOp(Expression left) {
+		Token opToken = getCurrent();
+		nextToken();
+		if (KeywordType.OPENING_PARENTHESES.equals(KeywordType.getKeywordType(opToken))
+				&& expect(opToken, KeywordType.OPENING_PARENTHESES)) {
+			return parseFunctionCallExpression((VarExpr) left);
+		} else {
+			Expression rightExpr = parseExpression(Precedence.getPrecedenceOf(opToken));
+			expectTypeCurrent(KeywordToken.class);
+			KeywordToken keyword = (KeywordToken) opToken;
+			return new InfixExpr(MathOp.fromKeyword(keyword.getType()), left, rightExpr);
+		}
+	}
+
+	private FunctionCallExpr parseFunctionCallExpression(VarExpr expr) {
+		return new FunctionCallExpr(expr.getId(), parseFunctionArguments());
+	}
+
+	private Expression[] parseFunctionArguments() {
+		List<Expression> args = new ArrayList<>();
+		while (!KeywordType.CLOSING_PARENTHESES.equals(KeywordType.getKeywordType(getCurrent()))) {
+			Expression arg = parseExpression(Precedence.NONE);
+			args.add(arg);
+			expectCurrent(KeywordType.COMMA, KeywordType.CLOSING_PARENTHESES);
+			if (KeywordType.COMMA.equals(KeywordType.getKeywordType(current))) {
+				nextToken();
+			}
+		}
+		nextToken();
+		return args.toArray(new Expression[args.size()]);
 	}
 
 	/**
-	 * Reads the current token and tries to pars it as an expression.
-	 * An expression is a integer or a variable.
-	 * @return returns the parsed expression or throws an {@link RuntimeWrapperException}
+	 * Reads the current token and tries to pars it as an expression. An expression
+	 * is a integer or a variable.
+	 *
+	 * @return returns the parsed expression or throws an
+	 *         {@link RuntimeWrapperException}
 	 * @throws if the current token is an unexpected token
 	 */
 	private Expression parsePrefixExpression() {
 		Token current = getCurrent();
 		if (current instanceof IntegerToken) {
 			return readNumber();
-		} else if(current instanceof IdentifierToken) {
+		} else if(current instanceof StringToken) {
+			return readString();
+		} else if (current instanceof IdentifierToken) {
 			return readVarExpression();
-		} else if(KeywordType.getKeywordType(current) == KeywordType.OPENING_PARENTHESES) {
+		} else if (KeywordType.getKeywordType(current) == KeywordType.OPENING_PARENTHESES) {
 			return parseParentheses();
-		} else if(current instanceof KeywordToken) {
+		} else if (current instanceof KeywordToken) {
 			KeywordToken keywordToken = (KeywordToken) current;
-			if(keywordToken.getPrecedence() != Precedence.NONE) {
+			if (keywordToken.getPrecedence() != Precedence.NONE) {
 				nextToken();
 				Expression expr = parseExpression(Precedence.NONE);
 				return new PrefixExpr(MathOp.fromKeyword(keywordToken.getType()), expr);
@@ -351,8 +383,9 @@ public class Parser {
 	}
 
 	/**
-	 * Reads a integer token into a {@link IntegerExpr}.
-	 * Expects the current token to be an integer token
+	 * Reads a integer token into a {@link IntegerExpr}. Expects the current token
+	 * to be an integer token
+	 *
 	 * @return the integer expression
 	 */
 	private IntegerExpr readNumber() {
@@ -368,9 +401,23 @@ public class Parser {
 		}
 	}
 
+	private StringExpr readString() {
+		Token current = getCurrent();
+		nextToken();
+
+		if (expectType(current, StringToken.class)) {
+			StringToken token = (StringToken) current;
+			return new StringExpr(token.getString());
+		} else {
+			throw new RuntimeWrapperException(new ParserException(current.getAddress(),
+					"Unexpected Token: \"" + current.getString() + "\", expected a string"));
+		}
+	}
+
 	/**
-	 * Reads an identifier into an var expression.
-	 * Expects the current token to be an identifier token
+	 * Reads an identifier into an var expression. Expects the current token to be
+	 * an identifier token
+	 *
 	 * @return
 	 */
 	private VarExpr readVarExpression() {

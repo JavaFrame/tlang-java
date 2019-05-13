@@ -1,6 +1,7 @@
 package ninja.seppli.lexer.token;
 
 import static ninja.seppli.lexer.token.Precedence.ADDSUB;
+import static ninja.seppli.lexer.token.Precedence.FUNCTION_CALL;
 import static ninja.seppli.lexer.token.Precedence.NONE;
 
 import ninja.seppli.lexer.token.Precedence.HasPrecedence;
@@ -10,9 +11,11 @@ public enum KeywordType implements HasPrecedence {
 	COLON(":"),
 	PLUS("+", ADDSUB),
 	MINUS("-", ADDSUB),
-	OPENING_PARENTHESES("("),
+	OPENING_PARENTHESES("(", FUNCTION_CALL),
 	CLOSING_PARENTHESES(")"),
 	SEMICOLON(";"),
+	COMMA(","),
+	QUOTE("\""),
 	EOF("<EOF>"),
 	ERROR("<ERROR>")
 	;

@@ -2,7 +2,8 @@ package ninja.seppli.lexer.token;
 
 public enum Precedence {
 	NONE(0),
-	ADDSUB(1);
+	FUNCTION_CALL(1),
+	ADDSUB(2);
 
 	private int precedence;
 

@@ -1,10 +1,15 @@
 package ninja.seppli.interpreter;
 
+import java.util.Arrays;
+import java.util.stream.Collectors;
+
 import ninja.seppli.ast.AstNode;
 import ninja.seppli.ast.expression.Expression;
+import ninja.seppli.ast.expression.FunctionCallExpr;
 import ninja.seppli.ast.expression.InfixExpr;
 import ninja.seppli.ast.expression.IntegerExpr;
 import ninja.seppli.ast.expression.PrefixExpr;
+import ninja.seppli.ast.expression.StringExpr;
 import ninja.seppli.ast.expression.VarExpr;
 import ninja.seppli.ast.statement.ExpressionStmt;
 import ninja.seppli.ast.statement.Program;
@@ -15,8 +20,10 @@ import ninja.seppli.exception.ExceptionHandler;
 import ninja.seppli.exception.InterpreterException;
 import ninja.seppli.exception.RuntimeWrapperException;
 import ninja.seppli.interpreter.representation.Environement;
+import ninja.seppli.interpreter.representation.TFunction;
 import ninja.seppli.interpreter.representation.TInt;
 import ninja.seppli.interpreter.representation.TNull;
+import ninja.seppli.interpreter.representation.TString;
 import ninja.seppli.interpreter.representation.Value;
 
 public class Interpreter {
@@ -28,6 +35,21 @@ public class Interpreter {
 		this.program = program;
 		this.environement = environement;
 		this.handler = handler;
+	}
+
+	private void expectClass(String errorMsg, Value obj, Class<?>... expectedClass) {
+		boolean matched = false;
+		for (Class<?> cls : expectedClass) {
+			if (!cls.isAssignableFrom(obj.getClass())) {
+				matched = true;
+			}
+		}
+		if (!matched) {
+			errorMsg = errorMsg.replace("%got%", obj.getTypeName());
+			errorMsg = errorMsg.replace("%expect%",
+					Arrays.stream(expectedClass).map(Class::getSimpleName).collect(Collectors.joining(", ")));
+			throw new RuntimeWrapperException(new InterpreterException(null, errorMsg));
+		}
 	}
 
 	public Value execute() {
@@ -85,16 +107,19 @@ public class Interpreter {
 		return executeExpression(stmt.getExpr());
 	}
 
-
 	public Value executeExpression(Expression expr) {
 		if (expr instanceof InfixExpr) {
 			return executeInfixExpr((InfixExpr) expr);
 		} else if (expr instanceof PrefixExpr) {
 			return executePrefixExpr((PrefixExpr) expr);
+		} else if (expr instanceof FunctionCallExpr) {
+			return executeFunctionCallExpr((FunctionCallExpr) expr);
 		} else if (expr instanceof VarExpr) {
 			return executeVarExpr((VarExpr) expr);
 		} else if (expr instanceof IntegerExpr) {
 			return executeIntegerExpr((IntegerExpr) expr);
+		} else if (expr instanceof StringExpr) {
+			return executeStringExpr((StringExpr) expr);
 		} else {
 			throw new IllegalStateException("Unkown subclass \"" + expr.getClass().getName() + "\" of Expression");
 		}
@@ -102,24 +127,26 @@ public class Interpreter {
 
 	private Value executeInfixExpr(InfixExpr e) {
 		Value v1 = executeExpression(e.getExpr1());
-		if (!(v1 instanceof TInt)) {
-			throw new RuntimeWrapperException(new InterpreterException(null, "The infix operation "
-					+ e.getOp().getSign() + " expects two integer, not an \"" + v1.getTypeName() + "\""));
-		}
 		Value v2 = executeExpression(e.getExpr2());
-		if (!(v2 instanceof TInt)) {
-			throw new RuntimeWrapperException(new InterpreterException(null, "The infix operation "
-					+ e.getOp().getSign() + " expects two integer, not an \"" + v2.getTypeName() + "\""));
-		}
-		TInt tint1 = (TInt) v1;
-		TInt tint2 = (TInt) v2;
+		TInt tint1;
+		TInt tint2;
 		switch (e.getOp()) {
 		case ADD:
-			return new TInt(tint1.getValue() + tint2.getValue());
+			if(v1 instanceof TInt && v2 instanceof TInt)  {
+				tint1 = (TInt) v1;
+				tint2 = (TInt) v2;
+				return new TInt(tint1.getValue() + tint2.getValue());
+			}
+			return new TString(v1.convertToTString().getValue() + v2.convertToTString().getValue());
 		case SUB:
+			tint1 = (TInt) v1;
+			tint2 = (TInt) v2;
+			expectClass("Subtract only works with integers, got \"%got%\"", v1, TInt.class);
+			expectClass("Subtract only works with integers, got \"%got%\"", v2, TInt.class);
 			return new TInt(tint1.getValue() - tint2.getValue());
 		default:
-			throw new RuntimeWrapperException(new InterpreterException(null, "Unsupported prefix operation: " + e.getOp().getSign()));
+			throw new RuntimeWrapperException(
+					new InterpreterException(null, "Unsupported prefix operation: " + e.getOp().getSign()));
 		}
 	}
 
@@ -136,8 +163,29 @@ public class Interpreter {
 		case SUB:
 			return new TInt(-tint.getValue());
 		default:
-			throw new RuntimeWrapperException(new InterpreterException(null, "Unsupported prefix operation: " + e.getOp().getSign()));
+			throw new RuntimeWrapperException(
+					new InterpreterException(null, "Unsupported prefix operation: " + e.getOp().getSign()));
 		}
+	}
+
+	private Value executeFunctionCallExpr(FunctionCallExpr expr) {
+		Value function = getEnvironement().getScope().get(expr.getFunctionName().getString());
+		if (function == null) {
+			throw new RuntimeWrapperException(new InterpreterException(null,
+					"The function \"" + expr.getFunctionName().getString() + "\" doesn't exist"));
+		}
+		if (!(function instanceof TFunction)) {
+			throw new RuntimeWrapperException(
+					new InterpreterException(null, "Cannot execute the type \"" + function.getTypeName() + "\""));
+		}
+
+		Expression[] argExprs = expr.getArgs();
+		Value[] args = new Value[argExprs.length];
+		for (int i = 0; i < argExprs.length; i++) {
+			args[i] = executeExpression(argExprs[i]);
+		}
+
+		return ((TFunction) function).execute(args);
 	}
 
 	/**
@@ -163,6 +211,10 @@ public class Interpreter {
 	 */
 	private Value executeIntegerExpr(IntegerExpr expr) {
 		return new TInt(expr.getNumber());
+	}
+
+	private Value executeStringExpr(StringExpr expr) {
+		return new TString(expr.getString());
 	}
 
 	public Program getProgram() {

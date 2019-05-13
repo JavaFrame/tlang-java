@@ -6,7 +6,6 @@ import ninja.seppli.ast.statement.Program;
 import ninja.seppli.exception.ExceptionHandler;
 import ninja.seppli.interpreter.Interpreter;
 import ninja.seppli.interpreter.representation.Environement;
-import ninja.seppli.interpreter.representation.Scope;
 import ninja.seppli.interpreter.representation.Value;
 import ninja.seppli.lexer.Lexer;
 import ninja.seppli.parser.Parser;
@@ -19,6 +18,11 @@ public class Repl {
 	public void run() {
 		try {
 			Environement environement = new Environement();
+			environement.loadDefaultFunctions();
+			System.out.println("Welcome to the TLang REPL");
+			System.out.println(environement.print());
+			System.out.println();
+
 			System.out.print(">");
 			Scanner in = new Scanner(System.in);
 			while (in.hasNext()) {
@@ -45,23 +49,11 @@ public class Repl {
 						Thread.sleep(50);
 					}
 					System.out.println("-> " + returnValue.convertToTString().getValue());
-					System.out.println(printEnvironement(environement));
 				}
 				System.out.print("> ");
 			}
 		} catch (InterruptedException e) {
 			return;
 		}
-	}
-
-	private String printEnvironement(Environement e) {
-		StringBuilder b = new StringBuilder();
-		b.append("environement:\n");
-		Scope s = e.getScope();
-		String[] names = s.getNames();
-		for (String name : names) {
-			b.append("\t" + name + " = " + s.get(name).convertToTString().getValue() + "\n");
-		}
-		return b.toString();
 	}
 }

@@ -10,6 +10,8 @@ import org.apache.logging.log4j.Logger;
 import ninja.seppli.lexer.token.IdentifierToken;
 import ninja.seppli.lexer.token.IntegerToken;
 import ninja.seppli.lexer.token.KeywordToken;
+import ninja.seppli.lexer.token.KeywordType;
+import ninja.seppli.lexer.token.StringToken;
 import ninja.seppli.lexer.token.Token;
 import ninja.seppli.utils.TextAddress;
 
@@ -165,7 +167,10 @@ public class Lexer {
 			skipWhitespaces();
 
 			// if the current character was matched to a keywordToken -> return the token
-			Token keywordToken = KeywordToken.getKeywordToken(getCurrent(), getAddress());
+			KeywordToken keywordToken = KeywordToken.getKeywordToken(getCurrent(), getAddress());
+			if(KeywordType.QUOTE.equals(KeywordType.getKeywordType(keywordToken))) {
+				return readString();
+			}
 			if (keywordToken != null) {
 				read();
 				return keywordToken;
@@ -203,6 +208,53 @@ public class Lexer {
 		}
 		int number = Integer.parseInt(numberStr);
 		return new IntegerToken(number, getAddress());
+	}
+
+	/**
+	 * Tries to read until the current character isn't a digit anymore and
+	 * converts the read input to a {@link IntegerToken}
+	 * @return the integer token
+	 * @throws EOFException throws an eof exception only if no digit was read
+	 */
+	private StringToken readString() throws EOFException {
+		//skip " character
+
+
+		String str = "";
+		try {
+			while(getNext() != '"' || (getNext() == '\\' && getCurrent() == '\\')) {
+				char next = getNext();
+				if(getCurrent() == '\\') {
+					switch (next) {
+					case 'n':
+						next = '\n';
+						break;
+					case 't':
+						next = '\t';
+						break;
+					case '\\':
+						next = '\\';
+						break;
+					default:
+						str += '\\';
+						break;
+					}
+				}
+				if(getNext() != '\\') {
+					str += next;
+				}
+				read();
+			}
+			read();
+			read();
+		} catch (EOFException ex) {
+			//only throws the eof exception if the number string is empty, else a
+			// IntegerToken should be returned
+			if(str.isEmpty()) {
+				throw ex;
+			}
+		}
+		return new StringToken(str, getAddress());
 	}
 
 
